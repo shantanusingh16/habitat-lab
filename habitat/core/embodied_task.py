@@ -262,7 +262,6 @@ class EmbodiedTask:
     ) -> OrderedDict:
         if entities_config is None:
             entities_config = self._config
-
         entities = OrderedDict()
         for entity_name in entity_names:
             entity_cfg = getattr(entities_config, entity_name)

@@ -4,6 +4,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from typing import List, Tuple, Union
 import numpy as np
 import quaternion
 
@@ -54,3 +55,68 @@ def quaternion_to_list(q: np.quaternion):
     return quaternion.as_float_array(
         quaternion_wxyz_to_xyzw(quaternion.as_float_array(q))
     ).tolist()
+
+
+def quaternion_from_coeff(coeffs: List[float]) -> quaternion.quaternion:
+    r"""Creates a quaternions from coeffs in [x, y, z, w] format"""
+    quat = quaternion.quaternion(0, 0, 0, 0)
+    quat.real = coeffs[3]
+    quat.imag = coeffs[0:3]
+    return quat
+
+
+def quaternion_rotate_vector(
+    quat: quaternion.quaternion, v: np.ndarray
+) -> np.ndarray:
+    r"""Rotates a vector by a quaternion
+    Args:
+        quaternion: The quaternion to rotate by
+        v: The vector to rotate
+    Returns:
+        np.ndarray: The rotated vector
+    """
+    vq = quaternion.quaternion(0, 0, 0, 0)
+    vq.imag = v
+    return (quat * vq * quat.inverse()).imag
+
+
+def agent_state_target2ref(
+    ref_agent_state: Union[List, Tuple], target_agent_state: Union[List, Tuple]
+) -> Tuple[quaternion.quaternion, np.ndarray]:
+    r"""Computes the target agent_state's rotation and position representation
+    with respect to the coordinate system defined by reference agent's rotation and position.
+    All rotations must be in [x, y, z, w] format.
+    :param ref_agent_state: reference agent_state in the format of [rotation, position].
+         The rotation and position are from a common/global coordinate systems.
+         They define a local coordinate system.
+    :param target_agent_state: target agent_state in the format of [rotation, position].
+        The rotation and position are from a common/global coordinate systems.
+        and need to be transformed to the local coordinate system defined by ref_agent_state.
+    """
+
+    assert (
+        len(ref_agent_state[1]) == 3
+    ), "Only support Cartesian format currently."
+    assert (
+        len(target_agent_state[1]) == 3
+    ), "Only support Cartesian format currently."
+
+    ref_rotation, ref_position = ref_agent_state
+    target_rotation, target_position = target_agent_state
+
+    # convert to all rotation representations to np.quaternion
+    if not isinstance(ref_rotation, quaternion.quaternion):
+        ref_rotation = quaternion_from_coeff(ref_rotation)
+    ref_rotation = ref_rotation.normalized()
+
+    if not isinstance(target_rotation, quaternion.quaternion):
+        target_rotation = quaternion_from_coeff(target_rotation)
+    target_rotation = target_rotation.normalized()
+
+    rotation_in_ref_coordinate = ref_rotation.inverse() * target_rotation
+
+    position_in_ref_coordinate = quaternion_rotate_vector(
+        ref_rotation.inverse(), target_position - ref_position
+    )
+
+    return (rotation_in_ref_coordinate, position_in_ref_coordinate)
